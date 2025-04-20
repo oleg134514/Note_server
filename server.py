@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -15,7 +15,7 @@ import uuid
 
 # Конфигурация
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")  # Монтируем директорию static
+app.mount("/static", StaticFiles(directory="static"), name="static")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://note.kfh.ru.net", "http://localhost:3000"],
@@ -43,7 +43,16 @@ class Note(BaseModel):
 
 class User(BaseModel):
     username: str
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8)
+    email: Optional[EmailStr] = None
+
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str = Field(..., min_length=8)
 
 class Token(BaseModel):
     access_token: str
@@ -66,6 +75,7 @@ async def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
+            email VARCHAR(255),
             hashed_password VARCHAR(100) NOT NULL
         );
         CREATE TABLE IF NOT EXISTS notes (
@@ -135,6 +145,40 @@ async def startup():
 @app.get("/")
 async def root():
     return {"message": "Welcome to Notes App API. Use /docs for API documentation."}
+
+@app.post("/register", response_model=User)
+async def register(user: UserCreate):
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        existing_user = await conn.fetchrow("SELECT * FROM users WHERE username = $1", user.username)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        hashed_password = get_password_hash(user.password)
+        await conn.execute(
+            "INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3)",
+            user.username, user.email, hashed_password
+        )
+    finally:
+        await conn.close()
+    return {"username": user.username, "email": user.email}
+
+@app.post("/change-password")
+async def change_password(
+    password_data: PasswordChange,
+    current_user: dict = Depends(get_current_user)
+):
+    if not verify_password(password_data.old_password, current_user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
+    hashed_new_password = get_password_hash(password_data.new_password)
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        await conn.execute(
+            "UPDATE users SET hashed_password = $1 WHERE id = $2",
+            hashed_new_password, current_user["id"]
+        )
+    finally:
+        await conn.close()
+    return {"message": "Password changed successfully"}
 
 @app.post("/token", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
