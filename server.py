@@ -1,5 +1,8 @@
+
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from jose import JWTError, jwt
@@ -12,11 +15,19 @@ import uuid
 
 # Конфигурация
 app = FastAPI()
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")  # Берется из переменной окружения
+app.mount("/static", StaticFiles(directory="static"), name="static")  # Монтируем директорию static
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://note.kfh.ru.net", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://notes_user:notes_password@localhost:5432/notes_db")
-S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://localhost:9000")  # MinIO
+S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://localhost:9000")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "minioadmin")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "minioadmin")
 S3_BUCKET = "notes-bucket"
@@ -120,6 +131,10 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 @app.on_event("startup")
 async def startup():
     await init_db()
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Notes App API. Use /docs for API documentation."}
 
 @app.post("/token", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):

@@ -26,7 +26,7 @@
 
       const login = async () => {
         try {
-          const response = await axios.post("http://localhost:8000/token", {
+          const response = await axios.post("https://note.kfh.ru.net/api/token", {
             username,
             password,
           }, {
@@ -41,7 +41,7 @@
 
       const fetchNotes = async () => {
         try {
-          const response = await axios.get("http://localhost:8000/notes/", {
+          const response = await axios.get("https://note.kfh.ru.net/api/notes/", {
             headers: { Authorization: `Bearer ${token}` },
           });
           setNotes(response.data);
@@ -56,7 +56,7 @@
         formData.append("content", content);
         if (file) formData.append("file", file);
         try {
-          await axios.post("http://localhost:8000/notes/", formData, {
+          await axios.post("https://note.kfh.ru.net/api/notes/", formData, {
             headers: { Authorization: `Bearer ${token}` },
           });
           fetchNotes();
