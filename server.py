@@ -15,7 +15,7 @@ import uuid
 
 # Конфигурация
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+#app.mount("/static", StaticFiles(directory="static"), name="static")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://note.kfh.ru.net", "http://localhost:3000"],
