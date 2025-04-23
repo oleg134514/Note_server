@@ -31,7 +31,6 @@ def lock_file(file_path, mode='r'):
             try:
                 yield f
             finally:
-                # Разблокировка выполняется до выхода из with
                 if platform.system() == 'Windows':
                     f.seek(0)
                     file_size = os.path.getsize(file_path) or 1
@@ -68,32 +67,23 @@ def validate_file_mime(file_path):
         mime = magic.Magic(mime=True)
         file_type = mime.from_file(file_path)
         allowed_types = [
-            # Images
             'image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/tiff',
             'image/webp', 'image/svg+xml',
-            # Documents
             'application/pdf', 'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'application/vnd.oasis.opendocument.text', 'text/rtf', 'text/plain',
-            # Spreadsheets
             'application/vnd.ms-excel',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'application/vnd.oasis.opendocument.spreadsheet', 'text/csv',
-            # Presentations
             'application/vnd.ms-powerpoint',
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
             'application/vnd.oasis.opendocument.presentation',
-            # Audio
             'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/aac',
-            # Video
             'video/mp4', 'video/x-msvideo', 'video/x-matroska', 'video/webm', 'video/quicktime',
-            # Archives
             'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
             'application/x-tar', 'application/gzip',
-            # Code and markup
             'text/x-python', 'application/javascript', 'text/html', 'text/css',
             'application/json', 'application/xml',
-            # Other
             'text/markdown', 'application/epub+zip', 'text/calendar'
         ]
         if file_type not in allowed_types:
