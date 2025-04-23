@@ -1,34 +1,23 @@
+import configparser
 import os
-
-SETTINGS_FILE = "set.conf"
-
-def read_settings():
-    settings = {}
-    try:
-        if not os.path.exists(SETTINGS_FILE):
-            return {"error": f"Settings file {SETTINGS_FILE} not found"}
-        with open(SETTINGS_FILE, 'r') as f:
-            for line in f:
-                if line.startswith('#') or not line.strip():
-                    continue
-                key, value = line.strip().split('=', 1)
-                settings[key] = value
-        return settings
-    except Exception as e:
-        return {"error": f"Failed to read settings: {str(e)}"}
+import logging
 
 def get_config():
-    settings = read_settings()
-    if isinstance(settings, dict) and "error" in settings:
-        raise ValueError(settings["error"])
+    config = configparser.ConfigParser()
+    config_file = '/var/www/html/set.conf'
     
-    required_keys = [
-        'STORAGE', 'USERS_DB', 'TASKS_DB', 'USERS_TXT', 'TASKS_TXT',
-        'SUBTASKS_TXT', 'NOTES_DIR', 'FILES_DIR', 'USERS_DIR', 'DEBUG_LOG'
-    ]
+    if not os.path.exists(config_file):
+        logging.error(f"Config file {config_file} not found")
+        raise FileNotFoundError(f"Config file {config_file} not found")
     
-    for key in required_keys:
-        if key not in settings:
-            raise ValueError(f"Missing required setting: {key}")
-    
-    return settings
+    config.read(config_file)
+    return {
+        'STORAGE': config.get('DEFAULT', 'STORAGE', fallback='txt'),
+        'USERS_TXT': config.get('DEFAULT', 'USERS_TXT', fallback='/var/www/html/users.txt'),
+        'TASKS_TXT': config.get('DEFAULT', 'TASKS_TXT', fallback='/var/www/html/tasks.txt'),
+        'FILES_TXT': config.get('DEFAULT', 'FILES_TXT', fallback='/var/www/html/files.txt'),
+        'USERS_DB': config.get('DEFAULT', 'USERS_DB', fallback='/var/www/html/users.db'),
+        'TASKS_DB': config.get('DEFAULT', 'TASKS_DB', fallback='/var/www/html/tasks.db'),
+        'FILES_DIR': config.get('DEFAULT', 'FILES_DIR', fallback='/var/www/html/files'),
+        'LOG_FILE': config.get('DEFAULT', 'LOG_FILE', fallback='/var/www/notes_app/debug.log')
+    }

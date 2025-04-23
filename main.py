@@ -2,7 +2,7 @@ import sys
 import json
 import logging
 from config import get_config
-from users import register_user, user_exists, get_username, change_password
+from users import register_user, login_user, user_exists, get_username, change_password
 from notes import create_note, get_notes, edit_note, delete_note
 from tasks import create_task, delete_task, get_tasks
 from subtasks import create_subtask, get_subtasks
@@ -29,6 +29,15 @@ def main():
                 sys.exit(1)
             username, password, email = sys.argv[2], sys.argv[3], sys.argv[4]
             result = register_user(username, password, email, storage)
+            print(json.dumps(result, ensure_ascii=False))
+
+        elif command == 'login':
+            if len(sys.argv) < 4:
+                logging.error("Missing arguments for login")
+                print(json.dumps({"error": "Missing arguments for login"}, ensure_ascii=False))
+                sys.exit(1)
+            username, password = sys.argv[2], sys.argv[3]
+            result = login_user(username, password, storage)
             print(json.dumps(result, ensure_ascii=False))
 
         elif command == 'user_exists':

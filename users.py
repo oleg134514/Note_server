@@ -50,6 +50,46 @@ def register_user(username, password, email, storage):
         logging.error(f"Failed to register user: {str(e)}")
         return {"error": f"Failed to register user: {str(e)}"}
 
+def login_user(username, password, storage):
+    try:
+        config = get_config()
+        logging.info(f"Attempting login for user: {username}")
+        
+        if not validate_username(username):
+            logging.error(f"Invalid username: {username}")
+            return {"error": "Invalid username"}
+        
+        password_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+        
+        if storage == 'sqlite':
+            with sqlite3.connect(config['USERS_DB']) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM users WHERE username = ? AND password_hash = ?",
+                              (username, password_hash))
+                result = cursor.fetchone()
+                if result:
+                    user_id = result[0]
+                    logging.info(f"Login successful for user: {username}, user_id: {user_id}")
+                    return {"message": "Login successful", "user_id": user_id}
+                logging.error(f"Invalid credentials for user: {username}")
+                return {"error": "Invalid credentials"}
+        else:
+            if not os.path.exists(config['USERS_TXT']):
+                logging.info(f"Users file {config['USERS_TXT']} does not exist")
+                return {"error": "Invalid credentials"}
+            with lock_file(config['USERS_TXT'], 'r') as f:
+                for line in f:
+                    parts = line.strip().split(':')
+                    if len(parts) >= 3 and parts[1] == username and parts[2] == password_hash:
+                        user_id = parts[0]
+                        logging.info(f"Login successful for user: {username}, user_id: {user_id}")
+                        return {"message": "Login successful", "user_id": user_id}
+                logging.error(f"Invalid credentials for user: {username}")
+                return {"error": "Invalid credentials"}
+    except Exception as e:
+        logging.error(f"Failed to login user: {str(e)}")
+        return {"error": f"Failed to login user: {str(e)}"}
+
 def user_exists(username, storage):
     try:
         config = get_config()

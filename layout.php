@@ -1,29 +1,23 @@
-<?php
-require_once 'utils.php';
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes App</title>
-    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h2 { color: #333; }
+        form { margin-bottom: 20px; }
+        input, select, button { margin: 5px; padding: 5px; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin: 10px 0; }
+    </style>
 </head>
 <body>
     <header>
-        <nav>
-            <ul>
-                <li><a href="/index.php">Home</a></li>
-                <li><a href="/notes.php">Notes</a></li>
-                <li><a href="/tasks.php">Tasks</a></li>
-                <?php if (isset($_SESSION['user_id'])): ?>
-                    <li><a href="/profile.php">Profile</a></li>
-                    <li><a href="/logout.php">Logout</a></li>
-                <?php else: ?>
-                    <li><a href="/login.php">Login</a></li>
-                    <li><a href="/register.php">Register</a></li>
-                <?php endif; ?>
-            </ul>
-        </nav>
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <p><a href="index.php">Home</a> | <a href="tasks.php">Tasks</a> | <a href="notes.php">Notes</a> | <a href="profile.php">Profile</a> | <a href="logout.php">Logout</a></p>
+        <?php else: ?>
+            <p><a href="login.php">Login</a> | <a href="register.php">Register</a></p>
+        <?php endif; ?>
     </header>
     <main>
