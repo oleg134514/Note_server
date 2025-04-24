@@ -1,40 +1,45 @@
+<?php
+session_start();
+require_once 'config.php';
+require_once 'utils.php';
+
+// Установка темы по умолчанию, если не определена
+if (!isset($_SESSION['theme'])) {
+    $_SESSION['theme'] = 'light'; // Значение по умолчанию
+}
+
+// Получение языка и темы
+$language = isset($_SESSION['language']) ? $_SESSION['language'] : 'ru';
+$theme = $_SESSION['theme'];
+
+// Загрузка языковых данных
+$lang_file = "lang/{$language}.php";
+if (file_exists($lang_file)) {
+    $lang = include $lang_file;
+} else {
+    $lang = include 'lang/ru.php';
+}
+?>
 <!DOCTYPE html>
-<html lang="<?= $_SESSION['language'] ?? 'ru' ?>">
+<html lang="<?= htmlspecialchars($language) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Note Server</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: <?= $_SESSION['theme'] === 'dark' ? '#1a1a1a' : '#fff' ?>;
-            color: <?= $_SESSION['theme'] === 'dark' ? '#ddd' : '#333' ?>;
-        }
-        header {
-            background: <?= $_SESSION['theme'] === 'dark' ? '#2c2c2c' : '#007bff' ?>;
-            color: white;
-            padding: 10px 20px;
-            text-align: center;
-        }
-        main {
-            min-height: calc(100vh - 100px);
-        }
-        footer {
-            background: <?= $_SESSION['theme'] === 'dark' ? '#2c2c2c' : '#f8f9fa' ?>;
-            text-align: center;
-            padding: 10px;
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-        }
-        a { color: <?= $_SESSION['theme'] === 'dark' ? '#4dabf7' : '#007bff' ?>; }
-        button, input[type="submit"] { cursor: pointer; }
-    </style>
+    <link rel="stylesheet" href="/css/style.css">
+    <?php if ($theme === 'dark'): ?>
+        <link rel="stylesheet" href="/css/dark.css">
+    <?php endif; ?>
 </head>
-<body>
+<body class="<?= htmlspecialchars($theme) ?>">
     <header>
-        <h1>Note Server</h1>
+        <h1><?= $lang['title'] ?></h1>
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <nav>
+                <a href="/index.php"><?= $lang['home'] ?></a>
+                <a href="/profile.php"><?= $lang['profile'] ?></a>
+                <a href="/logout.php"><?= $lang['logout'] ?></a>
+            </nav>
+        <?php endif; ?>
     </header>
     <main>
