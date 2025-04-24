@@ -1,95 +1,102 @@
 <?php
 session_start();
-require_once 'config.php';
-require_once 'utils.php';
 
-$language = isset($_SESSION['language']) ? $_SESSION['language'] : 'ru';
-$lang_file = "lang/{$language}.php";
-if (file_exists($lang_file)) {
-    $lang = include $lang_file;
-} else {
-    $lang = include 'lang/ru.php';
+// Определение языковых констант (вместо lang/ru.php)
+$lang = [
+    'welcome_title' => 'Добро пожаловать',
+    'login' => 'Войти',
+    'register' => 'Зарегистрироваться',
+    'reset_password' => 'Восстановить пароль',
+    'username' => 'Имя пользователя',
+    'password' => 'Пароль',
+    'email' => 'Электронная почта',
+    'submit' => 'Отправить',
+    'error' => 'Ошибка',
+    'success' => 'Успех'
+];
+
+// Генерация CSRF-токена
+if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+error_log("Generated CSRF Token: " . $_SESSION['csrf_token']);
+
+// Подключение layout
+include 'layout.php';
+
+// Функция для выполнения команды регистрации
+function execute_register($username, $password, $email) {
+    $cmd = escapeshellcmd("python3 /var/www/html/main.py register " . escapeshellarg($username) . " " . escapeshellarg($password) . " " . escapeshellarg($email));
+    $output = [];
+    $return_var = 0;
+    exec($cmd, $output, $return_var);
+    $output = implode("\n", $output);
+    error_log("Register main.py output: $output");
+    error_log("Register main.py return_var: $return_var");
+    return ['output' => $output, 'return_var' => $return_var];
 }
 
-if (isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
-$tab = 'login';
+$tab = isset($_POST['tab']) ? $_POST['tab'] : 'login';
 $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $tab = $_POST['tab'] ?? 'login';
-    $csrf_token = $_POST['csrf_token'] ?? '';
-    error_log("POST CSRF Token: $csrf_token");
-    error_log("Session CSRF Token: " . ($_SESSION['csrf_token'] ?? 'not set'));
-    if (!validate_csrf_token($csrf_token)) {
-        $error = $lang['invalid_csrf_token'];
+    // Проверка CSRF-токена
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $error = 'Ошибка CSRF-токена';
+        error_log("CSRF Token mismatch. Received: " . ($_POST['csrf_token'] ?? 'none') . ", Expected: " . $_SESSION['csrf_token']);
     } else {
-        if ($tab === 'login') {
-            $username = sanitize_input($_POST['username'] ?? '');
+        error_log("CSRF Token Received: " . $_POST['csrf_token']);
+        error_log("CSRF Token Expected: " . $_SESSION['csrf_token']);
+        
+        if ($tab === 'register') {
+            $username = $_POST['username'] ?? '';
             $password = $_POST['password'] ?? '';
-            $command = "python3 main.py login " . escapeshellarg($username) . " " . escapeshellarg($password);
-            list($output, $return_var) = python_exec($command);
-            $output_str = implode("\n", $output);
-            error_log("Login main.py output: $output_str");
-            $result = json_decode($output_str, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $error = $lang['server_error'];
-                error_log("Login JSON decode error: " . json_last_error_msg());
-            } elseif (isset($result['user_id'])) {
-                $_SESSION['user_id'] = $result['user_id'];
-                $_SESSION['theme'] = get_user_theme($result['user_id']);
-                $_SESSION['language'] = get_user_language($result['user_id']);
-                header('Location: index.php');
-                exit;
+            $email = $_POST['email'] ?? '';
+            
+            if (empty($username) || empty($password) || empty($email)) {
+                $error = 'Все поля обязательны';
             } else {
-                $error = $result['error'] ?? $lang['login_failed'];
-            }
-        } elseif ($tab === 'register') {
-            $username = sanitize_input($_POST['username'] ?? '');
-            $password = $_POST['password'] ?? '';
-            $email = sanitize_input($_POST['email'] ?? '');
-            $command = "python3 main.py register " . escapeshellarg($username) . " " . escapeshellarg($password) . " " . escapeshellarg($email);
-            list($output, $return_var) = python_exec($command);
-            $output_str = implode("\n", $output);
-            error_log("Register main.py output: $output_str");
-            error_log("Register main.py return_var: $return_var");
-            $result = json_decode($output_str, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $error = $lang['server_error'];
-                error_log("Register JSON decode error: " . json_last_error_msg());
-            } elseif (isset($result['message']) && $result['message'] === 'User registered') {
-                $success = $lang['registration_successful'];
-                $tab = 'login';
-            } else {
-                $error = $result['error'] ?? $lang['registration_failed'];
-            }
-        } elseif ($tab === 'reset_request') {
-            $email = sanitize_input($_POST['email'] ?? '');
-            $command = "python3 main.py reset_request " . escapeshellarg($email);
-            list($output, $return_var) = python_exec($command);
-            $output_str = implode("\n", $output);
-            error_log("Reset main.py output: $output_str");
-            $result = json_decode($output_str, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $error = $lang['server_error'];
-                error_log("Reset JSON decode error: " . json_last_error_msg());
-            } elseif (isset($result['message']) && $result['message'] === 'Reset link sent') {
-                $success = $lang['reset_link_sent'];
-            } else {
-                $error = $result['error'] ?? $lang['reset_failed'];
+                $result = execute_register($username, $password, $email);
+                $json_output = $result['output'];
+                $return_var = $result['return_var'];
+                
+                // Проверка, является ли вывод валидным JSON
+                $decoded = json_decode($json_output, true);
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    error_log("Register JSON decode error: " . json_last_error_msg());
+                    $error = 'Ошибка регистрации: неверный ответ сервера';
+                } elseif ($return_var !== 0) {
+                    $error = 'Ошибка регистрации: ' . ($decoded['error'] ?? 'Неизвестная ошибка');
+                } else {
+                    $success = 'Регистрация успешна';
+                }
             }
         }
     }
 }
 ?>
 
-<?php require_once 'layout.php'; ?>
-<main>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Server</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+        }
+        main {
+            min-height: calc(100vh - 100px);
+        }
         .container { max-width: 400px; margin: 50px auto; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .tab-buttons { display: flex; justify-content: space-around; margin-bottom: 20px; }
         .tab-buttons button { padding: 10px 20px; background: #e0e0e0; border: none; border-radius: 4px; cursor: pointer; }
@@ -102,47 +109,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         button:hover { background: #0056b3; }
         .error { color: red; }
         .success { color: green; }
+        footer {
+            background: <?php echo $footer_color; ?>;
+            padding: 10px 20px;
+            text-align: center;
+            position: relative;
+            bottom: 0;
+            width: 100%;
+        }
     </style>
-    <div class="container">
-        <div class="tab-buttons">
-            <button onclick="showTab('login')" class="<?= $tab === 'login' ? 'active' : '' ?>">Войти</button>
-            <button onclick="showTab('register')" class="<?= $tab === 'register' ? 'active' : '' ?>">Зарегистрироваться</button>
-            <button onclick="showTab('reset_request')" class="<?= $tab === 'reset_request' ? 'active' : '' ?>">Восстановить пароль</button>
+</head>
+<body>
+    <header>
+        <h1>Note Server</h1>
+    </header>
+    <main>
+        <div class="container">
+            <?php if ($error): ?>
+                <p class="error"><?php echo htmlspecialchars($error); ?></p>
+            <?php endif; ?>
+            <?php if ($success): ?>
+                <p class="success"><?php echo htmlspecialchars($success); ?></p>
+            <?php endif; ?>
+            <div class="tab-buttons">
+                <button onclick="showTab('login')" class="<?php echo $tab === 'login' ? 'active' : ''; ?>"><?php echo $lang['login']; ?></button>
+                <button onclick="showTab('register')" class="<?php echo $tab === 'register' ? 'active' : ''; ?>"><?php echo $lang['register']; ?></button>
+                <button onclick="showTab('reset_request')" class="<?php echo $tab === 'reset_request' ? 'active' : ''; ?>"><?php echo $lang['reset_password']; ?></button>
+            </div>
+            <div id="login" class="tab-content <?php echo $tab === 'login' ? 'active' : ''; ?>">
+                <form method="POST">
+                    <input type="hidden" name="tab" value="login">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="text" name="username" placeholder="<?php echo $lang['username']; ?>" required>
+                    <input type="password" name="password" placeholder="<?php echo $lang['password']; ?>" required>
+                    <button type="submit"><?php echo $lang['login']; ?></button>
+                </form>
+            </div>
+            <div id="register" class="tab-content <?php echo $tab === 'register' ? 'active' : ''; ?>">
+                <form method="POST">
+                    <input type="hidden" name="tab" value="register">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="text" name="username" placeholder="<?php echo $lang['username']; ?>" required>
+                    <input type="password" name="password" placeholder="<?php echo $lang['password']; ?>" required>
+                    <input type="email" name="email" placeholder="<?php echo $lang['email']; ?>" required>
+                    <button type="submit"><?php echo $lang['register']; ?></button>
+                </form>
+            </div>
+            <div id="reset_request" class="tab-content <?php echo $tab === 'reset_request' ? 'active' : ''; ?>">
+                <form method="POST">
+                    <input type="hidden" name="tab" value="reset_request">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                    <input type="email" name="email" placeholder="<?php echo $lang['email']; ?>" required>
+                    <button type="submit"><?php echo $lang['submit']; ?></button>
+                </form>
+            </div>
         </div>
-        <?php if ($error): ?>
-            <p class="error"><?= htmlspecialchars($error) ?></p>
-        <?php endif; ?>
-        <?php if ($success): ?>
-            <p class="success"><?= htmlspecialchars($success) ?></p>
-        <?php endif; ?>
-        <div id="login" class="tab-content <?= $tab === 'login' ? 'active' : '' ?>">
-            <form method="POST">
-                <input type="hidden" name="tab" value="login">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
-                <input type="text" name="username" placeholder="Имя пользователя" required>
-                <input type="password" name="password" placeholder="Пароль" required>
-                <button type="submit">Войти</button>
-            </form>
-        </div>
-        <div id="register" class="tab-content <?= $tab === 'register' ? 'active' : '' ?>">
-            <form method="POST">
-                <input type="hidden" name="tab" value="register">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
-                <input type="text" name="username" placeholder="Имя пользователя" required>
-                <input type="password" name="password" placeholder="Пароль" required>
-                <input type="email" name="email" placeholder="Электронная почта" required>
-                <button type="submit">Зарегистрироваться</button>
-            </form>
-        </div>
-        <div id="reset_request" class="tab-content <?= $tab === 'reset_request' ? 'active' : '' ?>">
-            <form method="POST">
-                <input type="hidden" name="tab" value="reset_request">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(generate_csrf_token()) ?>">
-                <input type="email" name="email" placeholder="Электронная почта" required>
-                <button type="submit">Отправить ссылку для сброса</button>
-            </form>
-        </div>
-    </div>
+    </main>
+    <footer>
+        <p>© 2025 Note Server. Все права защищены.</p>
+    </footer>
     <script>
         function showTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -151,5 +176,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.querySelector(`button[onclick="showTab('${tab}')"]`).classList.add('active');
         }
     </script>
-</main>
-<?php require_once 'footer.php'; ?>
+</body>
+</html>
