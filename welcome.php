@@ -23,6 +23,8 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tab = $_POST['tab'] ?? 'login';
     $csrf_token = $_POST['csrf_token'] ?? '';
+    error_log("POST CSRF Token: $csrf_token");
+    error_log("Session CSRF Token: " . ($_SESSION['csrf_token'] ?? 'not set'));
     if (!validate_csrf_token($csrf_token)) {
         $error = $lang['invalid_csrf_token'];
     } else {
@@ -32,15 +34,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $command = "python3 main.py login " . escapeshellarg($username) . " " . escapeshellarg($password);
             list($output, $return_var) = python_exec($command);
             $output_str = implode("\n", $output);
+            error_log("Login main.py output: $output_str");
             $result = json_decode($output_str, true);
-            if (isset($result['user_id'])) {
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $error = $lang['server_error'];
+                error_log("Login JSON decode error: " . json_last_error_msg());
+            } elseif (isset($result['user_id'])) {
                 $_SESSION['user_id'] = $result['user_id'];
                 $_SESSION['theme'] = get_user_theme($result['user_id']);
                 $_SESSION['language'] = get_user_language($result['user_id']);
                 header('Location: index.php');
                 exit;
             } else {
-                $error = $lang['login_failed'];
+                $error = $result['error'] ?? $lang['login_failed'];
             }
         } elseif ($tab === 'register') {
             $username = sanitize_input($_POST['username'] ?? '');
@@ -49,8 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $command = "python3 main.py register " . escapeshellarg($username) . " " . escapeshellarg($password) . " " . escapeshellarg($email);
             list($output, $return_var) = python_exec($command);
             $output_str = implode("\n", $output);
+            error_log("Register main.py output: $output_str");
+            error_log("Register main.py return_var: $return_var");
             $result = json_decode($output_str, true);
-            if (isset($result['message']) && $result['message'] === 'User registered') {
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $error = $lang['server_error'];
+                error_log("Register JSON decode error: " . json_last_error_msg());
+            } elseif (isset($result['message']) && $result['message'] === 'User registered') {
                 $success = $lang['registration_successful'];
                 $tab = 'login';
             } else {
@@ -61,8 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $command = "python3 main.py reset_request " . escapeshellarg($email);
             list($output, $return_var) = python_exec($command);
             $output_str = implode("\n", $output);
+            error_log("Reset main.py output: $output_str");
             $result = json_decode($output_str, true);
-            if (isset($result['message']) && $result['message'] === 'Reset link sent') {
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $error = $lang['server_error'];
+                error_log("Reset JSON decode error: " . json_last_error_msg());
+            } elseif (isset($result['message']) && $result['message'] === 'Reset link sent') {
                 $success = $lang['reset_link_sent'];
             } else {
                 $error = $result['error'] ?? $lang['reset_failed'];
