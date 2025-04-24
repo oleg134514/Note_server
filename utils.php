@@ -4,9 +4,6 @@ function sanitize_input($input) {
 }
 
 function generate_csrf_token() {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         error_log("Generated CSRF Token: " . $_SESSION['csrf_token']);
@@ -15,12 +12,13 @@ function generate_csrf_token() {
 }
 
 function validate_csrf_token($token) {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
     error_log("CSRF Token Received: $token");
     error_log("CSRF Token Expected: " . ($_SESSION['csrf_token'] ?? 'not set'));
-    return !empty($token) && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    $valid = !empty($token) && !empty($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    if (!$valid) {
+        unset($_SESSION['csrf_token']); // Очистка токена при ошибке
+    }
+    return $valid;
 }
 
 function python_exec($command) {
@@ -31,12 +29,10 @@ function python_exec($command) {
 }
 
 function get_user_language($user_id) {
-    // Реализация получения языка пользователя
     return 'ru'; // Значение по умолчанию
 }
 
 function get_user_theme($user_id) {
-    // Реализация получения темы пользователя
     return 'light'; // Значение по умолчанию
 }
 ?>
